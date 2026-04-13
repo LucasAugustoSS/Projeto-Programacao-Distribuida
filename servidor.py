@@ -13,22 +13,42 @@ def conexao(conn, addr):
         print(f"Recebido: {dados.decode()}")
 
         estado_agente = json.loads(dados.decode())
-
         tipo = estado_agente.pop("tipo", None)
+        msg = ""
+        tamanho = b""
 
-        if tipo == "pedido":
-            pedido = estado_agente.pop("pedido", None)
-            if pedido not in historico:
-                historico[pedido] = {
-                    "status atual": estado_agente,
-                    "historico": []
-                }
+        with lock:
+            if tipo == "pedido":
+                pedido = estado_agente.pop("pedido", None)
+                if pedido not in historico:
+                    historico[pedido] = {
+                        "status atual": estado_agente["status"],
+                        "historico": [estado_agente]
+                    }
+                    msg = f"{pedido} atualizado".encode()
+                elif estado_agente["status"] != "coletando":
+                    historico[pedido]["status atual"] = estado_agente["status"]
+                    historico[pedido]["historico"].append(estado_agente)
+                    msg = f"{pedido} atualizado".encode()
+                else:
+                    msg = "Pedido já realizado".encode()
 
-            historico[pedido]["historico"].append(estado_agente)
+            elif tipo == "status pedido":
+                pedido = estado_agente.pop("pedido", None)
+                
+                if pedido not in historico:
+                    status = "não encontrado"
+                else:
+                    status = historico[pedido]["status atual"]
 
-            conn.send(f"Pedido {pedido} atualizado".encode())
-        elif tipo == "historico":
-            conn.send(json.dumps(historico).encode())
+                msg = f"Status de {pedido}: {status}".encode()
+                tamanho = f"{len(msg):<10}".encode()
+
+            elif tipo == "historico":
+                msg = json.dumps(historico).encode()
+                tamanho = f"{len(msg):<10}".encode()
+
+            conn.send(tamanho + msg)
 
     conn.close()
     print(f"Conexão por {addr} encerrada")
@@ -44,6 +64,7 @@ servidor.listen(5)
 print("Servidor aguardando...")
 
 historico = {}
+lock = threading.Lock()
 
 while True:
     conn, addr = servidor.accept()
