@@ -3,6 +3,12 @@ import json
 import time
 import random
 
+HOST = 'localhost'
+PORTA = 12345
+
+pendentes = []
+
+
 def requisicao():
     print(
         "1. Enviar Pedido\n" +
@@ -13,86 +19,284 @@ def requisicao():
     numero = input("> ")
 
     if numero == "1":
-        numero_pedido = input("Número do pedido: ")
+        numeroPedido = input("Número do pedido: ")
 
         msg = {
             "tipo": "pedido",
-            "pedido": f"pedido {numero_pedido}",
+            "pedido": f"pedido {numeroPedido}",
             "status": "coletando",
             "veiculo": 1
         }
+
     elif numero == "2":
-        numero_pedido = input("Número do pedido: ")
+        numeroPedido = input("Número do pedido: ")
 
         msg = {
             "tipo": "status pedido",
-            "pedido": f"pedido {numero_pedido}"
+            "pedido": f"pedido {numeroPedido}"
         }
+
     elif numero == "3":
         msg = {
             "tipo": "historico"
         }
+
     elif numero == "4":
         msg = {
             "tipo": "sair"
         }
 
+    else:
+        msg = {
+            "tipo": "invalido"
+        }
+
     return msg
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as cliente:
-    cliente.connect(('localhost', 12345))
 
+def conectar():
     while True:
-        msg = requisicao()
+        try:
+            cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            cliente.connect((HOST, PORTA))
+            print("Conectado ao servidor.")
+            return cliente
+        except ConnectionRefusedError:
+            print("Servidor indisponível. Tentando reconectar em 3 segundos...")
+            time.sleep(3)
 
-        if msg["tipo"] == "pedido":
-            cliente.send(json.dumps(msg).encode())
-            resposta = cliente.recv(1024)
-            print(f"Resposta: {resposta.decode()}")
 
-            if resposta.decode() == "Pedido já realizado":
-                continue
+def EnvioMsg(cliente, msg):
+    try:
+        cliente.send(json.dumps(msg).encode())
+        return True
+    except (BrokenPipeError, ConnectionResetError, OSError):
+        return False
 
-            tempo_previsto = 5
-            tempo_entrega = random.randint(3,6)
 
-            while True:
-                time.sleep(2)
+def RespostaS(cliente):
+    try:
+        resposta = cliente.recv(1024)
+        if not resposta:
+            return None
+        return resposta.decode()
+    except (ConnectionResetError, OSError):
+        return None
 
-                if tempo_entrega <= 0:
-                    msg["status"] = "entregue"
-                elif tempo_previsto <= 0:
-                    msg["status"] = "atrasado"
-                else:
-                    msg["status"] = "em rota"
 
-                cliente.send(json.dumps(msg).encode())
-                resposta = cliente.recv(1024)
-                print(f"Resposta: {resposta.decode()}")
+def layoutResposta(cliente):
+    try:
+        cabecalho = cliente.recv(10)
+        if not cabecalho:
+            return None
 
-                if msg["status"] == "entregue":
-                    break
+        tamanho = int(cabecalho.decode().strip())
+        dados = b""
 
-                tempo_entrega -= 1
-                tempo_previsto -= 1
+        while len(dados) < tamanho:
+            parte = cliente.recv(tamanho - len(dados))
+            if not parte:
+                return None
+            dados += parte
 
-        elif msg["tipo"] == "status pedido" or msg["tipo"] == "historico":
-            cliente.send(json.dumps(msg).encode())
-            tamanho = int(cliente.recv(10).decode().strip())
+        return dados.decode()
 
-            dados = b""
-            while len(dados) < tamanho:
-                restante = tamanho - len(dados)
-                parte = cliente.recv(restante)
+    except (ConnectionResetError, OSError, ValueError):
+        return None
 
-                if not parte:
-                    break
 
-                dados += parte
+def SalvaNaFila(msg):
+    pendentes.append(msg)
+    print("Evento salvo na fila local.")
 
-            print(f"{json.loads(dados.decode())}")
 
-        elif msg["tipo"] == "sair":
-            break
+def ReenvioPendendes(cliente):
+    global pendentes
 
+    if not pendentes:
+        return cliente
+
+    print("\nTentando reenviar eventos pendentes...")
+
+    novaFila = []
+
+    for evento in pendentes:
+        enviado = EnvioMsg(cliente, evento)
+
+        if not enviado:
+            print("Falha ao reenviar evento. Reconectando...")
+            try:
+                cliente.close()
+            except:
+                pass
+            cliente = conectar()
+            novaFila.append(evento)
+            continue
+
+        resposta = RespostaS(cliente)
+        if resposta is None:
+            print("Falha ao receber confirmação do evento pendente.")
+            novaFila.append(evento)
+        else:
+            print(f"Evento pendente reenviado com sucesso: {resposta}")
+
+    pendentes = novaFila
+    return cliente
+
+
+cliente = conectar()
+
+while True:
+    cliente = ReenvioPendendes(cliente)
+
+    msg = requisicao()
+
+    if msg["tipo"] == "invalido":
+        print("Opção inválida.")
+        continue
+
+    if msg["tipo"] == "pedido":
+        enviado = EnvioMsg(cliente, msg)
+
+        if not enviado:
+            print("Servidor indisponível no envio do pedido.")
+            SalvaNaFila(msg)
+            try:
+                cliente.close()
+            except:
+                pass
+            cliente = conectar()
+            continue
+
+        resposta = RespostaS(cliente)
+
+        if resposta is None:
+            print("Falha ao receber resposta do servidor.")
+            SalvaNaFila(msg)
+            try:
+                cliente.close()
+            except:
+                pass
+            cliente = conectar()
+            continue
+
+        print(f"Resposta: {resposta}")
+
+        if resposta == "Pedido já realizado":
+            continue
+
+        tempo_previsto = 5
+        tempo_entrega = random.randint(3, 6)
+
+        while True:
+            time.sleep(2)
+
+            if tempo_entrega <= 0:
+                msgUpdate = {
+                    "tipo": "pedido",
+                    "pedido": msg["pedido"],
+                    "status": "entregue",
+                    "veiculo": msg["veiculo"]
+                }
+            elif tempo_previsto <= 0:
+                msgUpdate = {
+                    "tipo": "pedido",
+                    "pedido": msg["pedido"],
+                    "status": "atrasado",
+                    "veiculo": msg["veiculo"]
+                }
+            else:
+                msgUpdate = {
+                    "tipo": "pedido",
+                    "pedido": msg["pedido"],
+                    "status": "em rota",
+                    "veiculo": msg["veiculo"]
+                }
+
+            enviado = EnvioMsg(cliente, msgUpdate)
+
+            if not enviado:
+                print("Servidor indisponível durante atualização.")
+                SalvaNaFila(msgUpdate)
+                try:
+                    cliente.close()
+                except:
+                    pass
+                cliente = conectar()
+                break
+
+            resposta = RespostaS(cliente)
+
+            if resposta is None:
+                print("Falha ao receber confirmação da atualização.")
+                SalvaNaFila(msgUpdate)
+                try:
+                    cliente.close()
+                except:
+                    pass
+                cliente = conectar()
+                break
+
+            print(f"Resposta: {resposta}")
+
+            if msgUpdate["status"] == "entregue":
+                break
+
+            tempo_entrega -= 1
+            tempo_previsto -= 1
+
+    elif msg["tipo"] == "status pedido":
+        enviado = EnvioMsg(cliente, msg)
+
+        if not enviado:
+            print("Servidor indisponível. Não foi possível consultar o status agora.")
+            try:
+                cliente.close()
+            except:
+                pass
+            cliente = conectar()
+            continue
+
+        resposta = layoutResposta(cliente)
+
+        if resposta is None:
+            print("Falha ao receber status.")
+            try:
+                cliente.close()
+            except:
+                pass
+            cliente = conectar()
+            continue
+
+        print(resposta)
+
+    elif msg["tipo"] == "historico":
+        enviado = EnvioMsg(cliente, msg)
+
+        if not enviado:
+            print("Servidor indisponível. Não foi possível consultar o histórico agora.")
+            try:
+                cliente.close()
+            except:
+                pass
+            cliente = conectar()
+            continue
+
+        resposta = layoutResposta(cliente)
+
+        if resposta is None:
+            print("Falha ao receber histórico.")
+            try:
+                cliente.close()
+            except:
+                pass
+            cliente = conectar()
+            continue
+
+        print(json.loads(resposta))
+
+    elif msg["tipo"] == "sair":
+        break
+
+cliente.close()
 print("Conexão encerrada.")
