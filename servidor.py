@@ -1,6 +1,7 @@
 import socket
 import threading
 import json
+from time import time
 from datetime import datetime
 
 def conexao(conn, addr):
@@ -22,7 +23,9 @@ def conexao(conn, addr):
         with lock:
             if tipo == "pedido":
                 pedido = estado_agente.pop("pedido", None)
+
                 if pedido not in historico:
+                    tempo_inicio = time()
                     historico[pedido] = {
                         "status atual": estado_agente["status"],
                         "historico": [estado_agente]
@@ -41,7 +44,9 @@ def conexao(conn, addr):
                           status_anterior == "em rota"):
                         msg = f"{pedido} atrasado..."
                     elif estado_agente["status"] == "entregue":
-                        msg = f"{pedido} entregue."
+                        tempo_fim = time()
+                        tempo_total = round(tempo_fim - tempo_inicio, 2)
+                        msg = f"{pedido} entregue em {tempo_total}s."
                     msg = msg.encode()
                 else:
                     msg = "Pedido já realizado".encode()
