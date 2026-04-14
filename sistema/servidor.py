@@ -54,7 +54,7 @@ def conexao(conn, addr):
 
             elif tipo == "status pedido":
                 pedido = estado_agente.pop("pedido", None)
-                
+
                 if pedido not in historico:
                     status = "não encontrado"
                 else:

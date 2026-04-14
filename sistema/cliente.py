@@ -299,7 +299,7 @@ while True:
 
         for i in pedidos:
             print(f"{i}:")
-            
+
             for j in pedidos[i]:
                 print(f"- {j}: ", end="")
 
