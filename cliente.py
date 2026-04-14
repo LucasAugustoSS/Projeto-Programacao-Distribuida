@@ -19,21 +19,21 @@ def requisicao():
     numero = input("> ")
 
     if numero == "1":
-        numeroPedido = input("Número do pedido: ")
+        numero_pedido = input("Número do pedido: ")
 
         msg = {
             "tipo": "pedido",
-            "pedido": f"pedido {numeroPedido}",
+            "pedido": f"pedido {numero_pedido}",
             "status": "coletando",
             "veiculo": 1
         }
 
     elif numero == "2":
-        numeroPedido = input("Número do pedido: ")
+        numero_pedido = input("Número do pedido: ")
 
         msg = {
             "tipo": "status pedido",
-            "pedido": f"pedido {numeroPedido}"
+            "pedido": f"pedido {numero_pedido}"
         }
 
     elif numero == "3":
@@ -118,7 +118,7 @@ def ReenvioPendendes(cliente):
 
     print("\nTentando reenviar eventos pendentes...")
 
-    novaFila = []
+    nova_fila = []
 
     for evento in pendentes:
         enviado = EnvioMsg(cliente, evento)
@@ -130,17 +130,17 @@ def ReenvioPendendes(cliente):
             except:
                 pass
             cliente = conectar()
-            novaFila.append(evento)
+            nova_fila.append(evento)
             continue
 
         resposta = RespostaS(cliente)
         if resposta is None:
             print("Falha ao receber confirmação do evento pendente.")
-            novaFila.append(evento)
+            nova_fila.append(evento)
         else:
             print(f"Evento pendente reenviado com sucesso: {resposta}")
 
-    pendentes = novaFila
+    pendentes = nova_fila
     return cliente
 
 
@@ -192,32 +192,32 @@ while True:
             time.sleep(2)
 
             if tempo_entrega <= 0:
-                msgUpdate = {
+                msg_atualizada = {
                     "tipo": "pedido",
                     "pedido": msg["pedido"],
                     "status": "entregue",
                     "veiculo": msg["veiculo"]
                 }
             elif tempo_previsto <= 0:
-                msgUpdate = {
+                msg_atualizada = {
                     "tipo": "pedido",
                     "pedido": msg["pedido"],
                     "status": "atrasado",
                     "veiculo": msg["veiculo"]
                 }
             else:
-                msgUpdate = {
+                msg_atualizada = {
                     "tipo": "pedido",
                     "pedido": msg["pedido"],
                     "status": "em rota",
                     "veiculo": msg["veiculo"]
                 }
 
-            enviado = EnvioMsg(cliente, msgUpdate)
+            enviado = EnvioMsg(cliente, msg_atualizada)
 
             if not enviado:
                 print("Servidor indisponível durante atualização.")
-                SalvaNaFila(msgUpdate)
+                SalvaNaFila(msg_atualizada)
                 try:
                     cliente.close()
                 except:
@@ -229,7 +229,7 @@ while True:
 
             if resposta is None:
                 print("Falha ao receber confirmação da atualização.")
-                SalvaNaFila(msgUpdate)
+                SalvaNaFila(msg_atualizada)
                 try:
                     cliente.close()
                 except:
@@ -239,7 +239,7 @@ while True:
 
             print(f"Resposta: {resposta}")
 
-            if msgUpdate["status"] == "entregue":
+            if msg_atualizada["status"] == "entregue":
                 break
 
             tempo_entrega -= 1
