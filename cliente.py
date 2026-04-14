@@ -10,13 +10,13 @@ pendentes = []
 
 
 def requisicao():
-    print(
+    print("\n" +
         "1. Enviar Pedido\n" +
         "2. Status de Pedido\n" +
         "3. Ver Histórico\n" +
         "4. Sair"
     )
-    numero = input("> ")
+    numero = input("\n> ")
 
     if numero == "1":
         numero_pedido = input("Número do pedido: ")
@@ -24,8 +24,7 @@ def requisicao():
         msg = {
             "tipo": "pedido",
             "pedido": f"pedido {numero_pedido}",
-            "status": "coletando",
-            "veiculo": 1
+            "status": "coletando"
         }
 
     elif numero == "2":
@@ -84,7 +83,7 @@ def RespostaS(cliente):
         return None
 
 
-def layoutResposta(cliente):
+def RespostaCompleta(cliente):
     try:
         cabecalho = cliente.recv(10)
         if not cabecalho:
@@ -150,6 +149,7 @@ while True:
     cliente = ReenvioPendendes(cliente)
 
     msg = requisicao()
+    print()
 
     if msg["tipo"] == "invalido":
         print("Opção inválida.")
@@ -180,13 +180,13 @@ while True:
             cliente = conectar()
             continue
 
-        print(f"Resposta: {resposta}")
+        print(f"{resposta}")
 
         if resposta == "Pedido já realizado":
             continue
 
         tempo_previsto = 5
-        tempo_entrega = random.randint(3, 6)
+        tempo_entrega = random.randint(3, 7)
 
         while True:
             time.sleep(2)
@@ -195,22 +195,19 @@ while True:
                 msg_atualizada = {
                     "tipo": "pedido",
                     "pedido": msg["pedido"],
-                    "status": "entregue",
-                    "veiculo": msg["veiculo"]
+                    "status": "entregue"
                 }
             elif tempo_previsto <= 0:
                 msg_atualizada = {
                     "tipo": "pedido",
                     "pedido": msg["pedido"],
-                    "status": "atrasado",
-                    "veiculo": msg["veiculo"]
+                    "status": "atrasado"
                 }
             else:
                 msg_atualizada = {
                     "tipo": "pedido",
                     "pedido": msg["pedido"],
-                    "status": "em rota",
-                    "veiculo": msg["veiculo"]
+                    "status": "em rota"
                 }
 
             enviado = EnvioMsg(cliente, msg_atualizada)
@@ -237,7 +234,8 @@ while True:
                 cliente = conectar()
                 break
 
-            print(f"Resposta: {resposta}")
+            if resposta != "-":
+                print(f"{resposta}")
 
             if msg_atualizada["status"] == "entregue":
                 break
@@ -257,7 +255,7 @@ while True:
             cliente = conectar()
             continue
 
-        resposta = layoutResposta(cliente)
+        resposta = RespostaCompleta(cliente)
 
         if resposta is None:
             print("Falha ao receber status.")
@@ -282,7 +280,7 @@ while True:
             cliente = conectar()
             continue
 
-        resposta = layoutResposta(cliente)
+        resposta = RespostaCompleta(cliente)
 
         if resposta is None:
             print("Falha ao receber histórico.")
@@ -293,7 +291,27 @@ while True:
             cliente = conectar()
             continue
 
-        print(json.loads(resposta))
+        pedidos = json.loads(resposta)
+
+        if not pedidos:
+            print("Não há pedidos no histórico.")
+            continue
+
+        for i in pedidos:
+            print(f"{i}:")
+            
+            for j in pedidos[i]:
+                print(f"- {j}: ", end="")
+
+                if isinstance(pedidos[i][j], list):
+                    print()
+                    for objeto_status in pedidos[i][j]:
+                        objetos = []
+                        for l in objeto_status:
+                            objetos.append(f"{l}: {objeto_status[l]}")
+                        print(f"  - {", ".join(objetos)}")
+                else:
+                    print(pedidos[i][j])
 
     elif msg["tipo"] == "sair":
         break

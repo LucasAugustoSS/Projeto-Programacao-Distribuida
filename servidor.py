@@ -1,6 +1,7 @@
 import socket
 import threading
 import json
+from datetime import datetime
 
 def conexao(conn, addr):
     print(f"Conectado por {addr}")
@@ -13,8 +14,9 @@ def conexao(conn, addr):
         print(f"Recebido: {dados.decode()}")
 
         estado_agente = json.loads(dados.decode())
+        estado_agente["horario"] = f"{datetime.now()}"
         tipo = estado_agente.pop("tipo", None)
-        msg = ""
+        msg = "-"
         tamanho = b""
 
         with lock:
@@ -25,11 +27,22 @@ def conexao(conn, addr):
                         "status atual": estado_agente["status"],
                         "historico": [estado_agente]
                     }
-                    msg = f"{pedido} atualizado".encode()
+                    msg = f"{pedido} em coleta...".encode()
                 elif estado_agente["status"] != "coletando":
                     historico[pedido]["status atual"] = estado_agente["status"]
                     historico[pedido]["historico"].append(estado_agente)
-                    msg = f"{pedido} atualizado".encode()
+
+                    status_anterior = historico[pedido]["historico"][-2]["status"]
+
+                    if (estado_agente["status"] == "em rota" and
+                        status_anterior == "coletando"):
+                        msg = f"{pedido} em rota..."
+                    elif (estado_agente["status"] == "atrasado" and
+                          status_anterior == "em rota"):
+                        msg = f"{pedido} atrasado..."
+                    elif estado_agente["status"] == "entregue":
+                        msg = f"{pedido} entregue."
+                    msg = msg.encode()
                 else:
                     msg = "Pedido já realizado".encode()
 
@@ -41,7 +54,7 @@ def conexao(conn, addr):
                 else:
                     status = historico[pedido]["status atual"]
 
-                msg = f"Status de {pedido}: {status}".encode()
+                msg = f"Status de {pedido}: {status}\nHorário: {datetime.now()}".encode()
                 tamanho = f"{len(msg):<10}".encode()
 
             elif tipo == "historico":
