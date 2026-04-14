@@ -1,7 +1,6 @@
 import socket
 import threading
 import json
-from time import time
 from datetime import datetime
 
 def conexao(conn, addr):
@@ -15,7 +14,7 @@ def conexao(conn, addr):
         print(f"Recebido: {dados.decode()}")
 
         estado_agente = json.loads(dados.decode())
-        estado_agente["horario"] = f"{datetime.now()}"
+        estado_agente["horario"] = datetime.now().isoformat()
         tipo = estado_agente.pop("tipo", None)
         msg = "-"
         tamanho = b""
@@ -25,10 +24,10 @@ def conexao(conn, addr):
                 pedido = estado_agente.pop("pedido", None)
 
                 if pedido not in historico:
-                    tempo_inicio = time()
                     historico[pedido] = {
                         "status atual": estado_agente["status"],
-                        "historico": [estado_agente]
+                        "historico": [estado_agente],
+                        "inicio": estado_agente["horario"]
                     }
                     msg = f"{pedido} em coleta...".encode()
                 elif estado_agente["status"] != "coletando":
@@ -44,8 +43,10 @@ def conexao(conn, addr):
                           status_anterior == "em rota"):
                         msg = f"{pedido} atrasado..."
                     elif estado_agente["status"] == "entregue":
-                        tempo_fim = time()
-                        tempo_total = round(tempo_fim - tempo_inicio, 2)
+                        historico[pedido]["fim"] = datetime.now().isoformat()
+                        inicio = datetime.fromisoformat(historico[pedido]["inicio"])
+                        fim = datetime.fromisoformat(historico[pedido]["fim"])
+                        tempo_total = round((fim - inicio).total_seconds(), 2)
                         msg = f"{pedido} entregue em {tempo_total}s."
                     msg = msg.encode()
                 else:
