@@ -137,7 +137,8 @@ def ReenvioPendendes(cliente):
             print("Falha ao receber confirmação do evento pendente.")
             nova_fila.append(evento)
         else:
-            print(f"Evento pendente reenviado com sucesso: {resposta}")
+            print(f"Evento pendente reenviado com sucesso:\n")
+            print(resposta)
 
     pendentes = nova_fila
     return cliente

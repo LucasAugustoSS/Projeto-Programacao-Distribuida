@@ -24,12 +24,15 @@ def conexao(conn, addr):
                 pedido = estado_agente.pop("pedido", None)
 
                 if pedido not in historico:
-                    historico[pedido] = {
-                        "status atual": estado_agente["status"],
-                        "historico": [estado_agente],
-                        "inicio": estado_agente["horario"]
-                    }
-                    msg = f"{pedido} em coleta...".encode()
+                    if estado_agente["status"] == "coletando":
+                        historico[pedido] = {
+                            "status atual": estado_agente["status"],
+                            "historico": [estado_agente],
+                            "inicio": estado_agente["horario"]
+                        }
+                        msg = f"{pedido} em coleta...".encode()
+                    else:
+                        msg = f"{pedido} não está no histórico, então o envio não pode continuar.".encode()
                 elif estado_agente["status"] != "coletando":
                     historico[pedido]["status atual"] = estado_agente["status"]
                     historico[pedido]["historico"].append(estado_agente)
